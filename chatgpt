@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# Nombre del script
+SCRIPT_NAME="chatgpt"
+
+# Verificar que el script se está ejecutando con el nombre correcto
+if [ "$(basename $0)" != "$SCRIPT_NAME" ]; then
+  echo "Por favor, ejecuta este script con el nombre '$SCRIPT_NAME'"
+  exit 1
+fi
+
+# Función para manejar la señal SIGINT (Ctrl+C)
+trap "echo -e '\nPrograma terminado.'; exit 0" SIGINT
+
+# Clave API de OpenAI
+OPENAI_API_KEY="Tu_ApiKey_Aqui"
+
+# Mensaje inicial del asistente
+messages='[{"role": "system", "content": "Eres un asistente útil"}]'
+
+while true; do
+  # Solicitar la consulta del usuario
+  read -p "Tu: " QUERY
+
+  # Salir del bucle si el usuario ingresa 'salir'
+  if [ "$QUERY" == "salir" ]; then
+    echo "Saliendo del programa..."
+    break
+  fi
+
+  # Añadir la consulta del usuario a los mensajes
+  messages=$(echo "$messages" | jq -c '. += [{"role": "user", "content": "'"$QUERY"'"}]')
+
+  # Realizar la solicitud a la API de OpenAI
+  response=$(curl -s -X POST https://api.openai.com/v1/chat/completions -H "Content-Type: application/json" -H "Authorization: Bearer $OPENAI_API_KEY" -d '{
+    "model": "gpt-4o",
+    "messages": '"$messages"',
+    "max_tokens": 2000
+  }')
+
+  # Verificar si hubo un error en la respuesta
+  if [ $? -ne 0 ]; then
+    echo "Error al realizar la solicitud a la API de OpenAI"
+  else
+    # Extraer y mostrar la respuesta del asistente
+    assistant_response=$(echo "$response" | jq -r '.choices[0].message.content')
+
+    if [ "$assistant_response" == "null" ]; then
+      echo "Error en la respuesta de OpenAI: $response"
+    else
+      echo "Assistant: $assistant_response"
+
+      # Añadir la respuesta del asistente a los mensajes
+      messages=$(echo "$messages" | jq -c '. += [{"role": "assistant", "content": "'"$assistant_response"'"}]')
+    fi
+  fi
+done
